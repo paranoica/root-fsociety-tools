@@ -2,7 +2,6 @@
 menu_name = "Information gathering"
 menu_items = [
     "Network mapper",
-    "SE-Toolkit",
     "Host2IP",
     "WPScan",
     "CMS-Map",
@@ -15,10 +14,17 @@ menu_items.append("Back")
 # endregion
 
 # region: additonal imports
+import os
+import sys
+
 import nmap # type: ignore
 import socket
 
-from colorama import Fore, Style
+import shutil
+import subprocess
+
+from colorama import Fore
+from datetime import datetime
 import dns.resolver as _dns_resolver # type: ignore
 # endregion
 
@@ -273,6 +279,180 @@ def host2ip(ctx):
     safe_print(ctx, "[*] Host2IP: operation finished.")
 # endregion
 
+# region: override class: wpscan
+class WPScan:
+    menu_items = [
+        "Username enumeration",
+        "Plugin enumeration",
+        "All enumeration tools",
+        "Back"
+    ]
+        
+    def __init__(self, ctx=None):
+        self.ctx = ctx or {}
+
+    def run(self, ctx):
+        self.ctx = ctx
+        safe_print(ctx, f"[*] WPScan: selected '{ctx.get('item')}'")
+        self.sub_menu(ctx)
+
+    def sub_menu(self, ctx):
+        safe_print(ctx, "\nWPScan options:")
+        for i, it in enumerate(self.menu_items, 1):
+            safe_print(ctx, f"  [{i}] {it}")
+        safe_print(ctx, "")
+            
+        choice = safe_input(ctx.get("prompt", "root ~# "), ctx).strip()
+        
+        if not choice.isdigit() or not (1 <= int(choice) <= len(self.menu_items)):
+            self.__init__()
+
+        idx = int(choice) - 1
+        sel = self.menu_items[idx]
+
+        if sel.lower() == "back":
+            return
+
+        if sel == "Username enumeration":
+            self.username_enumeration(ctx)
+        elif sel == "Plugin enumeration":
+            self.plugin_enumeration(ctx)
+        elif sel == "All enumeration tools":
+            self.all_enumeration_tools(ctx)
+
+    def _get_wpscan_cmd(self):
+        if shutil.which("wpscan"):
+            return ["wpscan"]
+
+        bundled = os.path.join(os.getcwd(), "tools", "wpscan", "wpscan.rb")
+        if os.path.exists(bundled) and shutil.which("ruby"):
+            return ["ruby", bundled]
+        
+        return None
+    
+    def _ensure_logs_dir(self):
+        logs_dir = os.path.join(os.getcwd(), "logs")
+        os.makedirs(logs_dir, exist_ok=True)
+
+        return logs_dir
+    
+    def _make_logfile(self, prefix):
+        logs_dir = self._ensure_logs_dir()
+        ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        
+        filename = f"{prefix}-{ts}.log"
+        return os.path.join(logs_dir, filename)
+    
+    def _run_command_stream(self, cmd_list, log_path, ctx):
+        try:
+            with open(log_path, "w", encoding="utf-8", errors="ignore") as logf:
+                logf.write("Command: " + " ".join(cmd_list) + "\n\n")
+                process = subprocess.Popen(
+                    cmd_list,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    bufsize=1,
+                    universal_newlines=True
+                )
+
+                if process.stdout is not None:
+                    for line in process.stdout:
+                        line = line.rstrip("\n")
+                        safe_print(ctx, line)
+                        logf.write(line + "\n")
+
+                    process.wait()
+                    return process.returncode
+                else:
+                    safe_print(ctx, "[!] No output from process.")
+                    return -1
+        except FileNotFoundError as e:
+            safe_print(ctx, f"[!] Executable not found: {e}")
+            return -1
+        except Exception as e:
+            safe_print(ctx, f"[!] Error running command: {e}")
+            return -1
+
+    def username_enumeration(self, ctx):
+        target = safe_input("Enter target (URL or domain, e.g. https://example.com): ", ctx).strip()
+        if not target:
+            safe_print(ctx, "[!] Target required.")
+            return
+        
+        wordlist = safe_input("Enter wordlist path (leave empty to use default): ", ctx).strip()
+        wpscan_cmd = self._get_wpscan_cmd()
+
+        if not wpscan_cmd:
+            safe_print(ctx, "[!] wpscan/ruby not found in PATH and bundled script not available.")
+            safe_print(ctx, "    Install wpscan or place tools/wpscan/wpscan.rb and ensure ruby is in PATH.")
+            return
+
+        logfile = self._make_logfile("wpscan-users")
+        args = wpscan_cmd + ["--no-banner", "--random-user-agent", "--url", target, "--enumerate", "u", logfile]
+
+        if wordlist:
+            args += ["--wordlist", wordlist]
+
+        safe_print(ctx, f"[*] Running username enumeration against {target}")
+        safe_print(ctx, f"[*] Log: {logfile}")
+
+        rc = self._run_command_stream(args, logfile, ctx)
+
+        if rc == 0:
+            safe_print(ctx, "[+] Username enumeration finished.")
+        else:
+            safe_print(ctx, f"[!] Enumeration finished with code {rc}.")
+
+    def plugin_enumeration(self, ctx):
+        target = safe_input("Enter target (URL or domain, e.g. https://example.com): ", ctx).strip()
+        if not target:
+            safe_print(ctx, "[!] Target required.")
+            return
+
+        wpscan_cmd = self._get_wpscan_cmd()
+        if not wpscan_cmd:
+            safe_print(ctx, "[!] wpscan/ruby not found in PATH and bundled script not available.")
+            return
+
+        logfile = self._make_logfile("wpscan-plugins")
+        args = wpscan_cmd + ["--no-banner", "--random-user-agent", "--url", target, "--enumerate", "p", logfile]
+
+        safe_print(ctx, f"[*] Running plugin enumeration against {target}")
+        safe_print(ctx, f"[*] Log: {logfile}")
+
+        rc = self._run_command_stream(args, logfile, ctx)
+        
+        if rc == 0:
+            safe_print(ctx, "[+] Plugin enumeration finished.")
+        else:
+            safe_print(ctx, f"[!] Enumeration finished with code {rc}.")
+
+    def all_enumeration_tools(self, ctx):
+        target = safe_input("Enter target (URL or domain, e.g. https://example.com): ", ctx).strip()
+        if not target:
+            safe_print(ctx, "[!] Target required.")
+            return
+
+        wpscan_cmd = self._get_wpscan_cmd()
+        if not wpscan_cmd:
+            safe_print(ctx, "[!] wpscan/ruby not found in PATH and bundled script not available.")
+            return
+
+        logfile = self._make_logfile("wpscan-all")
+        args = wpscan_cmd + ["--no-banner", "--random-user-agent", "--url", target, "--enumerate", "u,p,t", logfile]
+
+        safe_print(ctx, f"[*] Running all enumeration (users, plugins, themes) against {target}")
+        safe_print(ctx, f"[*] Log: {logfile}")
+
+        rc = self._run_command_stream(args, logfile, ctx)
+
+        if rc == 0:
+            safe_print(ctx, "[+] All enumeration finished.")
+        else:
+            safe_print(ctx, f"[!] Enumeration finished with code {rc}.")
+# endregion
+
 # region: actions utility
 def run_action(action, ctx):
     if isinstance(action, type):
@@ -303,7 +483,8 @@ def execute(ctx):
     fprint(f"[*] Executing: {item}")
     actions = {
         "Network mapper": Nmap,
-        "Host2IP": host2ip
+        "Host2IP": host2ip,
+        "WPScan": WPScan
     }
 
     action = actions.get(item)
