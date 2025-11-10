@@ -82,10 +82,10 @@ class menu:
         
         items = menu_items[menu_key]
 
-        print(Fore.LIGHTBLACK_EX + "Select from the menu:\n" + Style.RESET_ALL)
+        print(Fore.LIGHTBLACK_EX + "Select from the menu:" + Style.RESET_ALL)
         for i, it in enumerate(items, 1):
-            print(f"{Fore.LIGHTGREEN_EX}[•] [{i}]{Fore.LIGHTBLACK_EX} {it}")
-        print(f"{Fore.LIGHTGREEN_EX}[•] [0]{Fore.LIGHTBLACK_EX} Logout\n")
+            print(f"{Fore.LIGHTGREEN_EX}  [{i}]{Fore.LIGHTBLACK_EX} {it}")
+        print(f"{Fore.LIGHTGREEN_EX}  [0]{Fore.LIGHTBLACK_EX} Logout\n")
 
         choice = input(console_prompt).strip()
 
@@ -99,20 +99,20 @@ class menu:
             self.__init__()
 
         idx = int(choice) - 1
-        selected_item = items[idx]
+        sel = items[idx]
 
-        if selected_item.lower() == "back":
+        if sel.lower() == "back":
             if len(self.path) > 1:
                 self.path.pop()
             return self.run_menu("global")
 
-        if selected_item in menu_items:
-            self.path.append(selected_item)
-            return self.run_menu(selected_item)
+        if sel in menu_items:
+            self.path.append(sel)
+            return self.run_menu(sel)
 
         module = modules.get(menu_key)
         if module:
-            self.path.append(selected_item + ": fn()")
+            self.path.append(sel)
             self.clear()
 
             self.print_header()
@@ -120,13 +120,16 @@ class menu:
 
             try:
                 context = {
-                    "item": selected_item,
-                    "print": lambda text, color=Fore.LIGHTBLACK_EX: print(color + text + Style.RESET_ALL)
+                    "item": sel,
+                    "prompt": console_prompt,
+
+                    "print": lambda text, color=Fore.LIGHTBLACK_EX: print(color + text + Style.RESET_ALL),
+                    "wprint": lambda text, color=Fore.RED: print(color + text + Style.RESET_ALL)
                 }
 
                 module.execute(context)
             except Exception as e:
-                print(Fore.RED + f"[!] Error executing '{selected_item}': {e}")
+                print(Fore.RED + f"[!] Error executing '{sel}': {e}")
 
             self.path.pop()
             input(Fore.LIGHTBLACK_EX + "\nPress Enter to return..." + Style.RESET_ALL)
