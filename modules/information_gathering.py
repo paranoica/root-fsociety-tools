@@ -15,8 +15,11 @@ menu_items.append("Back")
 # endregion
 
 # region: additonal imports
-import time
 import nmap # type: ignore
+import socket
+
+from colorama import Fore, Style
+import dns.resolver as _dns_resolver # type: ignore
 # endregion
 
 # region: class helpers
@@ -31,9 +34,18 @@ def safe_print(ctx, text):
         print(text)
 
 def safe_input(prompt, ctx):
+    input_color = None
     try:
-        inp = input
-        return inp(prompt)
+        input_color = ctx.get("input_color")
+    except Exception:
+        input_color = None
+
+    if not input_color:
+        input_color = Fore.LIGHTBLACK_EX
+    colored_prompt = f"{input_color}{prompt}"
+
+    try:
+        return input(colored_prompt)
     except Exception:
         return input(prompt)
 # endregion
@@ -198,8 +210,67 @@ class Nmap:
 # region: override class: host2ip
 def host2ip(ctx):
     safe_print(ctx, "[*] Host2IP selected.")
-    host = safe_input("Enter hostname: ", ctx).strip()
-    safe_print(ctx, f"[+] {host} -> 192.0.2.1 (fake result)")
+    raw = safe_input("Enter hostname(s) (comma-separated): ", ctx).strip()
+
+    if not raw:
+        safe_print(ctx, "[!] No hostname provided.")
+        return
+
+    hosts = [h.strip() for h in raw.split(",") if h.strip()]
+    try:
+        dnspython_available = True
+    except Exception:
+        dnspython_available = False
+
+    for host in hosts:
+        safe_print(ctx, f"\n[*] Resolving: {host}")
+        try:
+            ips = []
+            infos = socket.getaddrinfo(host, None)
+
+            for info in infos:
+                addr = info[4][0]
+                if addr not in ips:
+                    ips.append(addr)
+
+            if ips:
+                safe_print(ctx, f"[+] {host} -> {', '.join(ips)}")
+            else:
+                safe_print(ctx, f"[!] No addresses found for {host}")
+
+            for ip in ips:
+                try:
+                    rev = socket.gethostbyaddr(ip)[0]
+                    safe_print(ctx, f"    PTR: {ip} -> {rev}")
+                except Exception:
+                    pass
+
+            if dnspython_available:
+                try:
+                    resolver = _dns_resolver.Resolver()
+                    try:
+                        mxs = resolver.resolve(host, "MX")
+                        mx_list = ", ".join(sorted([str(r.exchange).rstrip('.') for r in mxs]))
+
+                        safe_print(ctx, f"    MX: {mx_list}")
+                    except Exception:
+                        pass
+
+                    try:
+                        nss = resolver.resolve(host, "NS")
+                        ns_list = ", ".join(sorted([str(r.target).rstrip('.') for r in nss]))
+                        safe_print(ctx, f"    NS: {ns_list}")
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+
+        except socket.gaierror as e:
+            safe_print(ctx, f"[!] Cannot resolve {host}: {e}")
+        except Exception as e:
+            safe_print(ctx, f"[!] Unexpected error resolving {host}: {e}")
+
+    safe_print(ctx, "[*] Host2IP: operation finished.")
 # endregion
 
 # region: actions utility
