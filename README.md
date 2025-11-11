@@ -51,16 +51,6 @@
 - Shell Checker
 - Weeman
 
-## Windows
-
-Download Linux Bash Like [Cygwin](https://www.cygwin.com/)
-
-Download [Python](https://www.python.org/downloads/release/python-2714/)
-
-Use Google Cloud Console [Cloud Shell](https://console.cloud.google.com/cloudshell/editor?project=&pli=1&shellonly=true)
-
-Or use free Ubuntu VPS [c9.io](https://c9.io/)
-
 ## Docker
 
 ### Dependecies
@@ -72,5 +62,5 @@ Or use free Ubuntu VPS [c9.io](https://c9.io/)
 docker-compose build
 docker-compose up -d
 docker-compose exec fsociety fsociety
-docker-compose down # destroys instance
+docker-compose down
 ```
