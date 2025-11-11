@@ -18,6 +18,7 @@ import os
 import re
 
 import shutil
+import socket
 import subprocess
 
 from colorama import Fore
@@ -663,6 +664,433 @@ class Arachni:
         safe_print(ctx, "\n[*] Arachni session finished.\n")
 # endregion
 
+# region: override class: pwfscn
+class fscan:
+    menu_items = [
+        "Get all websites",
+        "Get joomla websites",
+        "Get wordpress websites",
+        "Control panel finder",
+        "Zip files finder",
+        "Get server users",
+        "SQLi scanner",
+        "Ports scan (range of ports)",
+        "Ports scan (common ports)",
+        "Get server info",
+        "Bypass cloudflare",
+        "Back"
+    ]
+
+    def __init__(self, ctx, ip):
+        self.ip = ip
+        self.ctx = ctx
+
+        self.get_sites(False)
+        self.sub_menu(ctx)
+
+    def sub_menu(self, ctx):
+        safe_print(ctx, "\nPrivate options:")
+        for i, it in enumerate(self.menu_items, 1):
+            safe_print(ctx, f"  [{i}] {it}")
+        safe_print(ctx, "")
+
+        choice = safe_input(ctx.get("prompt", "root ~# "), ctx).strip()
+        
+        if not choice.isdigit() or not (1 <= int(choice) <= len(self.menu_items)):
+            self.__init__()
+
+        idx = int(choice) - 1
+        sel = self.menu_items[idx]
+
+        if sel.lower() == "back":
+            return
+
+        if "all websites" in sel:
+            self.get_sites(True)
+        elif "joomla websites" in sel:
+            self.get_joomla()
+        elif "wordpress websites" in sel:
+            self.get_wordpress()
+        elif "panel finder" in sel:
+            self.find_zip_files()
+        elif "server users" in sel:
+            self.get_server_users()
+        elif "SQLi scanner" in sel:
+            self.scan_sqlis()
+        elif "range of ports" in sel:
+            range = safe_input("Enter range of ports (ex. 1-1000): ", ctx).strip()
+            self.scan_ports(1, range)
+        elif "common ports" in sel:
+            self.scan_ports(2, None)
+        elif "server info" in sel:
+            self.get_server_info()
+        elif "cloudflare" in sel:
+            self.bypass_cloudflare()
+
+    def unique(self, seq):
+        res = []
+        seen = ()
+
+        for item in seq:
+            if item not in seen:
+                seen.add(item)
+                res.append(item)
+
+        return res
+
+    def connect_port(self, ip, port):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock = sock.connect_ex((ip, port))
+
+        if sock == 0:
+            print("[*] Port %i is open" % port)
+
+    def get_sites(self, need_to_print):
+        seen = set()
+        results = []
+
+        offset = 1
+        headers = {"User-Agent": "Mozilla/5.0 (compatible)"}
+
+        server_ip = getattr(self, "ip", None)
+        if not server_ip:
+            safe_print(self.ctx, "[!] No IP provided to get_sites.")
+            self.sites = []
+
+            return
+
+        while offset <= 101:
+            try:
+                q = quote_plus(str(server_ip))
+                bing_url = ("https://www.bing.com/search?q=ip%3A{q}"
+                            "&count=50&first={offset}").format(q=q, offset=offset)
+
+                req = Request(bing_url, headers=headers)
+                with urlopen(req, timeout=10) as resp:
+                    html = resp.read().decode("utf-8", errors="ignore")
+
+                links = re.findall(r'<h2>.*?<a\s+href="(http[s]?://[^"]+)"', html, flags=re.I | re.S)
+                if not links:
+                    links = re.findall(r'<a\s+href="(http[s]?://[^"]+)"', html, flags=re.I)
+
+                for link in links:
+                    try:
+                        p = urlparse(link)
+                        host = p.netloc
+
+                        if not host:
+                            continue
+
+                        host_clean = host.lower()
+                        if host_clean.startswith("www."):
+                            normalized = f"http://{host_clean}/"
+                        else:
+                            normalized = f"http://www.{host_clean}/"
+
+                        if normalized not in seen:
+                            seen.add(normalized)
+                            results.append(normalized)
+                    except Exception:
+                        continue
+            except Exception:
+                pass
+
+            offset += 50
+
+        self.sites = results
+
+        if need_to_print:
+            safe_print(self.ctx, f"[*] Found {len(self.sites)} websites\n")
+            for site in self.sites:
+                safe_print(self.ctx, site)
+    
+    def get_joomla(self):
+        page = 1
+        list = []
+
+        server_ip = getattr(self, "ip", None)
+        headers = {"User-Agent": "Mozilla/5.0 (compatible)"}
+
+        if not server_ip:
+            safe_print(self.ctx, "[!] No server IP provided.")
+            return
+
+        while page <= 101:
+            try:
+                q = quote_plus(str(server_ip))
+
+                url = f"https://www.bing.com/search?q=ip%3A{q}+index.php?option=com&count=50&first={page}"
+                req = Request(url, headers=headers)
+                
+                with urlopen(req, timeout=10) as resp:
+                    html = resp.read().decode("utf-8", errors="ignore")
+
+                findwebs = re.findall(r'<h2><a href="(.*?)"', html, flags=re.I)
+                for jmnoclean in findwebs:
+                    matches = re.findall(r'(.*?)index.php', jmnoclean)
+                    list.extend(matches)
+            except Exception:
+                pass
+            page += 50
+
+        list = self.unique(list)
+        safe_print(self.ctx, f"[*] Found {len(list)} Joomla websites\n")
+
+        for site in list:
+            safe_print(self.ctx, site)
+
+    def get_wordpress(self):
+        page = 1
+        list = []
+
+        server_ip = getattr(self, "ip", None)
+        headers = {"User-Agent": "Mozilla/5.0 (compatible)"}
+
+        if not server_ip:
+            safe_print(self.ctx, "[!] No server IP provided.")
+            return
+
+        while page <= 101:
+            try:
+                q = quote_plus(str(server_ip))
+
+                url = f"https://www.bing.com/search?q=ip%3A{q}+?page_id=&count=50&first={page}"
+                req = Request(url, headers=headers)
+
+                with urlopen(req, timeout=10) as resp:
+                    html = resp.read().decode("utf-8", errors="ignore")
+
+                findwebs = re.findall(r'<h2><a href="(.*?)"', html, flags=re.I)
+                for wpnoclean in findwebs:
+                    matches = re.findall(r'(.*?)\?page_id=', wpnoclean)
+                    list.extend(matches)
+            except Exception:
+                pass
+            page += 50
+
+        list = self.unique(list)
+        safe_print(self.ctx, f"[*] Found {len(list)} WordPress websites\n")
+
+        for site in list:
+            safe_print(self.ctx, site)
+
+    def find_zip_files(self):
+        safe_print(self.ctx, "[~] Finding zip files...")
+
+        zip_list = [
+            'backup.tar.gz', 'backup/backup.tar.gz', 'backup/backup.zip', 'vb/backup.zip', 'site/backup.zip',
+            'backup.zip', 'backup.rar', 'backup.sql', 'vb/vb.zip', 'vb.zip', 'vb.sql', 'vb.rar',
+            'vb1.zip', 'vb2.zip', 'vbb.zip', 'vb3.zip', 'upload.zip', 'up/upload.zip', 'joomla.zip', 'joomla.rar',
+            'joomla.sql', 'wordpress.zip', 'wp/wordpress.zip', 'blog/wordpress.zip', 'wordpress.rar'
+        ]
+
+        for site in getattr(self, "sites", []):
+            for zip in zip_list:
+                try:
+                    url = site.rstrip("/") + "/" + zip
+                    req = Request(url, headers={"User-Agent": "Mozilla/5.0"})
+
+                    code = urlopen(req, timeout=5).getcode()
+                    if code == 200:
+                        safe_print(self.ctx, f"\t[*] Found zip file -> {url}")
+                except Exception:
+                    continue
+
+    def get_server_users(self):
+        safe_print(self.ctx, "[~] Grabbing users...")
+        users_list = []
+
+        for site1 in getattr(self, "sites", []):
+            try:
+                site = site1.replace("http://www.", "").replace("http://", "").replace(".", "").replace("-", "").replace("/", "")
+                temp_site = site
+
+                while len(temp_site) > 2:
+                    url = f"{site1}/cgi-sys/guestbook.cgi?user={temp_site}"
+                    req = Request(url, headers={"User-Agent": "Mozilla/5.0"})
+                    html = urlopen(req, timeout=5).read().decode("utf-8", errors="ignore")
+
+                    if 'invalid username' not in html.lower():
+                        safe_print(self.ctx, f"\t[*] Found -> {temp_site}")
+                        users_list.append(temp_site)
+
+                        break
+                    temp_site = temp_site[:-1]
+            except Exception:
+                continue
+
+        for user in users_list:
+            safe_print(self.ctx, user)
+
+    def check_sqli(self, urls):
+        safe_print(self.ctx, "[~] Checking SQL injection")
+
+        payloads = [
+            "3'", "3%5c", "3%27%22%28%29", "3'><",
+            "3%22%5C%27%5C%22%29%3B%7C%5D%2A%7B%250d%250a%3C%2500%3E%25bf%2527%27"
+        ]
+
+        error_regex = re.compile(
+            r"Incorrect syntax|mysql_fetch|Syntax error|Unclosed.+mark|unterminated.+qoute|SQL.+Server|Microsoft.+Database|Fatal.+error",
+            re.I
+        )
+
+        for url in urls:
+            try:
+                if '?' not in url:
+                    continue
+
+                params = url.split('?')[1].split('&')
+                for param in params:
+                    for payload in payloads:
+                        test_url = url.replace(param, param + payload.strip())
+                        try:
+                            req = Request(test_url, headers={"User-Agent": "Mozilla/5.0"})
+                            with urlopen(req, timeout=5) as resp:
+                                html_lines = resp.read().decode("utf-8", errors="ignore").splitlines()
+
+                            for line in html_lines:
+                                if error_regex.search(line):
+                                    safe_print(self.ctx, f"\t[*] SQLi found -> {test_url}")
+                        except Exception:
+                            continue
+            except Exception:
+                continue
+
+    def scan_sqlis(self):
+        page = 1
+        list = []
+
+        server_ip = getattr(self, "ip", None)
+        headers = {"User-Agent": "Mozilla/5.0 (compatible)"}
+
+        if not server_ip:
+            safe_print(self.ctx, "[!] No server IP provided.")
+            return
+
+        while page <= 101:
+            try:
+                q = quote_plus(str(server_ip))
+
+                url = f"https://www.bing.com/search?q=ip%3A{q}+php?id=&count=50&first={page}"
+                req = Request(url, headers=headers)
+
+                with urlopen(req, timeout=10) as resp:
+                    html = resp.read().decode("utf-8", errors="ignore")
+
+                findwebs = re.findall(r'<h2><a href="(.*?)"', html, flags=re.I)
+                list.extend(findwebs)
+            except Exception:
+                pass
+            page += 50
+
+        list = self.unique(list)
+        self.check_sqli(list)
+
+    def scan_ports(self, mode, range):
+        safe_print(self.ctx, "[~] Scanning Ports")
+
+        server_ip = getattr(self, "ip", None)
+        if not server_ip:
+            safe_print(self.ctx, "[!] No server IP provided.")
+            return
+
+        if mode == 1 and range:
+            try:
+                start, end = map(int, range.split('-'))
+                for port in range(start, end + 1):
+                    self.connect_port(server_ip, port)
+            except Exception as e:
+                safe_print(self.ctx, f"[!] Invalid range: {e}")
+        elif mode == 2:
+            common_ports = [80, 21, 22, 2082, 25, 53, 110, 443, 143]
+            for port in common_ports:
+                self.connect_port(server_ip, port)
+
+    def get_server_info(self):
+        server_ip = getattr(self, "ip", None)
+        if not server_ip:
+            safe_print(self.ctx, "[!] No server IP provided.")
+            return
+
+        try:
+            url = f"http://{server_ip}"
+
+            req = Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            resp = urlopen(req, timeout=5)
+
+            server_header = resp.headers.get("Server", "Not Found")
+            safe_print(self.ctx, f"\t[*] Server header -> {server_header}")
+        except Exception:
+            safe_print(self.ctx, "\t[*] Server header -> Not Found")
+
+    def bypass_cloudflare(self):
+        safe_print(self.ctx, "[~] Bypassing Cloudflare...")
+        subdoms = ['mail', 'webmail', 'ftp', 'direct', 'cpanel']
+
+        for site in getattr(self, "sites", []):
+            clean_site = site.replace("http://", "").replace("/", "")
+            try:
+                ip = socket.gethostbyname(clean_site)
+            except Exception:
+                continue
+            for sub in subdoms:
+                try:
+                    subdomain = f"{sub}.{clean_site}"
+                    ip2 = socket.gethostbyname(subdomain)
+
+                    if ip2 != ip:
+                        safe_print(self.ctx, f"\t[*] Cloudflare bypassed -> {ip2}")
+                        break
+                except Exception:
+                    continue
+
+class Pwfscn:
+    menu_items = [
+        "Run interactive",
+        "Back"
+    ]
+        
+    def __init__(self, ctx=None):
+        self.ctx = ctx or {}
+
+    def run(self, ctx):
+        self.ctx = ctx
+        safe_print(ctx, f"[*] Pwfscn: selected '{ctx.get('item')}'")
+        self.sub_menu(ctx)
+
+    def sub_menu(self, ctx):
+        safe_print(ctx, "\nPwfscn options:")
+        for i, it in enumerate(self.menu_items, 1):
+            safe_print(ctx, f"  [{i}] {it}")
+        safe_print(ctx, "")
+            
+        choice = safe_input(ctx.get("prompt", "root ~# "), ctx).strip()
+        
+        if not choice.isdigit() or not (1 <= int(choice) <= len(self.menu_items)):
+            self.__init__()
+
+        idx = int(choice) - 1
+        sel = self.menu_items[idx]
+
+        if sel.lower() == "back":
+            return
+
+        if "interactive" in sel:
+            self.run_interactive(ctx)
+
+    def run_interactive(self, ctx):
+        safe_print(ctx, "\n[*] Starting pwfscn session.\n")
+
+        target_ip = safe_input("Enter Target IP: ", ctx).strip()
+        if not target_ip:
+            safe_print(ctx, "[!] No input provided — aborting.")
+            return
+
+        fscan(ctx, target_ip)
+        safe_print(ctx, "\n[*] Pwfscn session finished.\n")
+# endregion
+
 # region: actions utility
 def run_action(action, ctx):
     if isinstance(action, type):
@@ -698,7 +1126,7 @@ def execute(ctx):
         "Joomla! remote code execution": Joomlarce,
         "Vbulletin remote code execution": Vbulletinrce,
         "Arachni - Web Application Security Scanner Framework": Arachni,
-        #"Private web f-scanner"
+        "Private web f-scanner": Pwfscn
     }
 
     action = actions.get(item)
