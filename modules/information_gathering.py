@@ -630,6 +630,114 @@ class CMSMap:
             safe_print(ctx, f"[!] Full scan finished with code {rc}.")
 # endregion
 
+# region: override class: XSStrike
+class XSStrike:
+    menu_items = [
+        "Run interactive mode",
+        "Quick scan (URL)",
+        "Custom scan (manual args)",
+        "Back"
+    ]
+        
+    def __init__(self, ctx=None):
+        self.ctx = ctx or {}
+
+        self.tool_direction = os.path.join(os.getcwd(), "tools")
+        self.install_direction = os.path.join(self.tool_direction, "XSStrike")
+
+        self.git_repository = "https://github.com/UltimateHackers/XSStrike.git"
+
+        if not os.path.isdir(self.tool_direction):
+            os.makedirs(self.tool_direction, exist_ok=True)
+
+        if not self.installed():
+            self.install()
+
+    def installed(self):
+        return os.path.isdir(self.install_direction) and os.path.exists(os.path.join(self.install_direction, "xsstrike.py"))
+
+    def install(self):
+        safe_print(self.ctx, "[*] Installing XSStrike...")
+        
+        os.system(f"git clone --depth=1 {self.git_repository} {self.install_direction}")
+        os.system(f"pip install -r {os.path.join(self.install_direction, 'requirements.txt')}")
+
+        safe_print(self.ctx, "[+] XSStrike installed successfully.")
+
+    def run(self, ctx):
+        self.ctx = ctx
+        safe_print(ctx, f"[*] XSStrike: selected '{ctx.get('item')}'")
+        self.sub_menu(ctx)
+
+    def sub_menu(self, ctx):
+        safe_print(ctx, "\nXSStrike options:")
+        for i, it in enumerate(self.menu_items, 1):
+            safe_print(ctx, f"  [{i}] {it}")
+        safe_print(ctx, "")
+            
+        choice = safe_input(ctx.get("prompt", "root ~# "), ctx).strip()
+        
+        if not choice.isdigit() or not (1 <= int(choice) <= len(self.menu_items)):
+            self.__init__()
+
+        idx = int(choice) - 1
+        sel = self.menu_items[idx]
+
+        if sel.lower() == "back":
+            return
+
+        if "interactive" in sel:
+            self.run_interactive(ctx)
+        elif "quick" in sel:
+            self.quick_scan(ctx)
+        elif "custom" in sel:
+            self.custom_scan(ctx)
+
+    def run_interactive(self, ctx):
+        safe_print(ctx, "\n[*] Starting XSStrike interactive session.")
+        target = safe_input("Target URL (e.g. https://example.com): ", ctx).strip()
+        if not target:
+            safe_print(ctx, "[!] Target required.")
+            return
+
+        crawl = safe_input("Crawl site? (y/n): ", ctx).strip().lower()
+        level = safe_input("Crawl depth level [1-3] (default 1): ", ctx).strip() or "1"
+        blind = safe_input("Inject blind XSS payloads? (y/n): ", ctx).strip().lower()
+        
+        args = [f"-u {target}"]
+        if crawl == "y":
+            args.append("--crawl")
+            args.append(f"-l {level}")
+        if blind == "y":
+            args.append("--blind")
+
+        cmd = f"python {os.path.join(self.install_direction, 'xsstrike.py')} {' '.join(args)}"
+        safe_print(ctx, f"[*] Executing: {cmd}")
+        os.system(cmd)
+        safe_input("Press Enter to return...", ctx)
+
+    def quick_scan(self, ctx):
+        target = safe_input("Enter target URL (e.g. https://example.com): ", self.ctx).strip()
+        if not target:
+            safe_print(self.ctx, "[!] Target required.")
+            return
+
+        safe_print(self.ctx, f"[*] Running XSStrike quick scan against {target}")
+        cmd = f"python {os.path.join(self.install_direction, 'xsstrike.py')} -u {target}"
+        os.system(cmd)
+
+    def custom_scan(self, ctx):
+        args = safe_input("Enter XSStrike arguments (e.g. -u https://site.com --crawl): ", self.ctx).strip()
+        if not args:
+            safe_print(self.ctx, "[!] No arguments provided.")
+            return
+
+        safe_print(self.ctx, f"[*] Running XSStrike with args: {args}")
+
+        cmd = f"python {os.path.join(self.install_direction, 'xsstrike.py')} {args}"
+        os.system(cmd)
+# endregion
+
 # region: actions utility
 def run_action(action, ctx):
     if isinstance(action, type):
@@ -662,7 +770,8 @@ def execute(ctx):
         "Network mapper": Nmap,
         "Host2IP": host2ip,
         "WPScan": WPScan,
-        "CMS-Map": CMSMap
+        "CMS-Map": CMSMap,
+        "XSStrike": XSStrike
     }
 
     action = actions.get(item)
