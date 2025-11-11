@@ -571,7 +571,7 @@ class Arachni:
             self.install()
 
     def installed(self):
-        return os.path.isdir(self.tool_direction) or (os.path.isdir(self.install_direction) and os.path.exists(os.path.join(self.install_direction, "arachni.py")))
+        return os.path.isdir(self.install_direction) and os.path.exists(os.path.join(self.install_direction, "arachni.py"))
 
     def install(self):
         safe_print(self.ctx, "[*] Installing Arachni...")

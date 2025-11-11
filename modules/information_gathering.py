@@ -474,7 +474,7 @@ class CMSMap:
             self.install()
 
     def installed(self):
-        return os.path.isdir(self.tool_direction) or (os.path.isdir(self.install_direction) and os.path.exists(os.path.join(self.install_direction, "cmsmap.py")))
+        return os.path.isdir(self.install_direction) and os.path.exists(os.path.join(self.install_direction, "cmsmap.py"))
 
     def install(self):
         safe_print(self.ctx, "[*] Installing CMSMap...")
@@ -573,7 +573,7 @@ class XSStrike:
             self.install()
 
     def installed(self):
-        return os.path.isdir(self.tool_direction) or (os.path.isdir(self.install_direction) and os.path.exists(os.path.join(self.install_direction, "xsstrike.py")))
+        return os.path.isdir(self.install_direction) and os.path.exists(os.path.join(self.install_direction, "xsstrike.py"))
 
     def install(self):
         safe_print(self.ctx, "[*] Installing XSStrike...")
@@ -679,7 +679,7 @@ class Doork:
             self.install()
 
     def installed(self):
-        return os.path.isdir(self.tool_direction) or (os.path.isdir(self.install_direction) and os.path.exists(os.path.join(self.install_direction, "doork.py")))
+        return os.path.isdir(self.install_direction) and os.path.exists(os.path.join(self.install_direction, "doork.py"))
 
     def install(self):
         safe_print(self.ctx, "[*] Installing Doork...")

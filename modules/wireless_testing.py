@@ -77,9 +77,6 @@ class Reaver:
         if shutil.which("reaver"):
             return True
 
-        if os.path.isdir(self.tool_direction):
-            return True
-
         return False
 
     def install(self):
@@ -277,9 +274,6 @@ class PixieWPS:
         if shutil.which("pixiewps"):
             return True
 
-        if os.path.isdir(self.tool_direction):
-            return True
-
         return False
 
     def install(self):
@@ -453,9 +447,6 @@ class Bluepot:
             for f in files:
                 if f.lower().startswith("bluepot") and f.lower().endswith(".jar"):
                     return True
-
-        if os.path.isdir(self.tool_direction):
-            return True
 
         return False
 
