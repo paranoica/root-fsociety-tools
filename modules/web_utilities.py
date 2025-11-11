@@ -2,7 +2,6 @@
 menu_name = "Web utilities"
 menu_items = [
     "Drupal hacking",
-    "Inurlbr",
     "Wordpress and Joomla scanner",
     "Gravity form scanner",
     "File upload checker",
@@ -59,7 +58,7 @@ def safe_input(prompt, ctx):
 # region: override class: drupal
 class Drupal:
     menu_items = [
-        "Drupal bing exploiter",
+        "Run interactive",
         "Back"
     ]
         
@@ -88,7 +87,7 @@ class Drupal:
         if sel.lower() == "back":
             return
 
-        if "bing" in sel:
+        if "interactive" in sel:
             self.run_interactive(ctx)
 
     def run_interactive(self, ctx):
@@ -176,7 +175,200 @@ class Drupal:
                 safe_print(ctx, f"[!] Error on page {page}: {ex}")
 
             page += 10
+
         safe_print(ctx, "[*] Bing exploiter run finished.")
+# endregion
+
+# region: override class: wppjmla
+class Wppjmla:
+    menu_items = [
+        "Run interactive",
+        "Back"
+    ]
+        
+    def __init__(self, ctx=None):
+        self.ctx = ctx or {}
+
+    def run(self, ctx):
+        self.ctx = ctx
+        safe_print(ctx, f"[*] Wppjmla: selected '{ctx.get('item')}'")
+        self.sub_menu(ctx)
+
+    def sub_menu(self, ctx):
+        safe_print(ctx, "\nWppjmla options:")
+        for i, it in enumerate(self.menu_items, 1):
+            safe_print(ctx, f"  [{i}] {it}")
+        safe_print(ctx, "")
+            
+        choice = safe_input(ctx.get("prompt", "root ~# "), ctx).strip()
+        
+        if not choice.isdigit() or not (1 <= int(choice) <= len(self.menu_items)):
+            self.__init__()
+
+        idx = int(choice) - 1
+        sel = self.menu_items[idx]
+
+        if sel.lower() == "back":
+            return
+
+        if "interactive" in sel:
+            self.run_interactive(ctx)
+
+    def _ensure_trailing_slash(url: str) -> str:
+        return url if url.endswith('/') else url + '/'
+
+    def bing_all_grabber(self, ip):
+        seen = set()
+        results = []
+
+        offset = 1
+        headers = {"User-Agent": "Mozilla/5.0 (compatible)"}
+
+        while offset <= 101:
+            try:
+                q = quote_plus(ip)
+
+                bing_url = ("https://www.bing.com/search?q=ip%3A{q}""&count=50&first={offset}").format(q=q, offset=offset)
+                req = Request(bing_url, headers=headers)
+
+                with urlopen(req, timeout=10) as resp:
+                    html = resp.read().decode("utf-8", errors="ignore")
+
+                links = re.findall(r'<h2>.*?<a\s+href="(http[s]?://[^"]+)"', html, flags=re.I|re.S)
+                if not links:
+                    links = re.findall(r'<a\s+href="(http[s]?://[^"]+)"', html, flags=re.I)
+
+                for link in links:
+                    try:
+                        p = urlparse(link)
+                        host = p.netloc
+
+                        if not host:
+                            continue
+
+                        if host.startswith("www."):
+                            normalized = f"http://{host}/"
+                        else:
+                            normalized = f"http://www.{host}/"
+
+                        if normalized not in seen:
+                            seen.add(normalized)
+                            results.append(normalized)
+                    except Exception:
+                        continue
+            except Exception as e:
+                pass
+
+            offset += 50
+        return results
+    
+    def check_wordpress(self, sites, timeout=10, headers=None):
+        if headers is None:
+            headers = {"User-Agent": "Mozilla/5.0 (compatible)"}
+
+        results = []
+        try:
+            import requests
+            use_requests = True
+        except Exception:
+            use_requests = False
+
+        for site in sites:
+            try:
+                base = self._ensure_trailing_slash(site.strip())
+                url = base + "wp-login.php"
+
+                if use_requests:
+                    resp = requests.get(url, headers=headers, timeout=timeout, allow_redirects=True)
+                    if resp.status_code == 200:
+                        results.append(site)
+                else:
+                    req = Request(url, headers=headers)
+                    with urlopen(req, timeout=timeout) as r:
+                        code = getattr(r, "getcode", lambda: None)()
+                        if code == 200:
+                            results.append(site)
+            except Exception:
+                continue
+
+        return results
+
+    def check_joomla(self, sites, timeout=10, headers=None):
+        if headers is None:
+            headers = {"User-Agent": "Mozilla/5.0 (compatible)"}
+
+        results = []
+        try:
+            import requests
+            use_requests = True
+        except Exception:
+            use_requests = False
+
+        for site in sites:
+            try:
+                base = self._ensure_trailing_slash(site.strip())
+                url = base + "administrator"
+
+                if use_requests:
+                    resp = requests.get(url, headers=headers, timeout=timeout, allow_redirects=True)
+                    if resp.status_code == 200:
+                        results.append(site)
+                else:
+                    req = Request(url, headers=headers)
+                    with urlopen(req, timeout=timeout) as r:
+                        code = getattr(r, "getcode", lambda: None)()
+                        if code == 200:
+                            results.append(site)
+            except Exception:
+                continue
+
+        return results
+
+    def run_interactive(self, ctx):
+        safe_print(ctx, "\n[*] Starting wppjmla session.\n")
+
+        target_ip = safe_input("Enter Target IP: ", ctx).strip()
+        if not target_ip:
+            safe_print(ctx, "[!] No input provided — aborting.")
+            return
+
+        try:
+            sites = self.bing_all_grabber(target_ip)
+        except Exception as e:
+            safe_print(ctx, f"[!] Error grabbing sites: {e}")
+            return
+
+        try:
+            wordpress_sites = self.check_wordpress(sites)
+        except Exception as e:
+            safe_print(ctx, f"[!] Error checking WordPress sites: {e}")
+            wordpress_sites = []
+
+        try:
+            joomla_sites = self.check_joomla(sites)
+        except Exception as e:
+            safe_print(ctx, f"[!] Error checking Joomla sites: {e}")
+            joomla_sites = []
+
+        if wordpress_sites:
+            safe_print(ctx, "\n[+] Found WordPress websites:")
+            for wp in wordpress_sites:
+                safe_print(ctx, f"  {wp}")
+            safe_print(ctx, f"[+] Total WordPress sites: {len(wordpress_sites)}")
+        else:
+            safe_print(ctx, "[-] No WordPress sites found.")
+
+        safe_print(ctx, "\n" + "-" * 30 + "\n")
+
+        if joomla_sites:
+            safe_print(ctx, "[+] Found Joomla websites:")
+            for jm in joomla_sites:
+                safe_print(ctx, f"  {jm}")
+            safe_print(ctx, f"[+] Total Joomla sites: {len(joomla_sites)}")
+        else:
+            safe_print(ctx, "[-] No Joomla sites found.")
+
+        safe_print(ctx, "\n[*] Wppjmla session finished.\n")
 # endregion
 
 # region: actions utility
@@ -209,8 +401,7 @@ def execute(ctx):
     fprint(f"[*] Executing: {item}")
     actions = {
         "Drupal hacking": Drupal,
-        "Inurlbr": Inurlbr,
-        #"Wordpress and Joomla scanner",
+        "Wordpress and Joomla scanner": Wppjmla,
         #"Gravity form scanner",
         #"File upload checker",
         #"Wordpress exploit scanner",
