@@ -50,17 +50,3 @@
 
 - Shell Checker
 - Weeman
-
-## Docker
-
-### Dependecies
-
-[Docker](https://www.docker.com/)
-[Docker-compose](https://docs.docker.com/compose/install/)
-
-```bash
-docker-compose build
-docker-compose up -d
-docker-compose exec fsociety fsociety
-docker-compose down
-```
