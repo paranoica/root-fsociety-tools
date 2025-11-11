@@ -10,8 +10,6 @@ menu_items.append("Back")
 
 # region: additonal imports
 import os
-import platform
-
 import shutil
 import subprocess
 
