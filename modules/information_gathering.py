@@ -608,9 +608,9 @@ class XSStrike:
 
         if "interactive" in sel:
             self.run_interactive(ctx)
-        elif "quick" in sel:
+        elif "quick" in sel.lower():
             self.quick_scan(ctx)
-        elif "custom" in sel:
+        elif "custom" in sel.lower():
             self.custom_scan(ctx)
 
     def run_interactive(self, ctx):
