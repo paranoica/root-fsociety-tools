@@ -6,8 +6,7 @@ menu_items = [
     "WPScan",
     "CMS-Map",
     "XSStrike",
-    "Doork",
-    "Crips"
+    "Doork"
 ]
 
 menu_items.append("Back")
