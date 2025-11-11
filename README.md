@@ -51,22 +51,6 @@
 - Shell Checker
 - Weeman
 
-# Installation
-
-## Linux
-
-```bash
-bash <(wget -qO- https://git.io/vAtmB)
-```
-
-## Installation
-
-Download [Termux](https://play.google.com/store/apps/details?id=com.termux)
-
-```bash
-bash <(wget -qO- https://git.io/vAtmB)
-```
-
 ## Windows
 
 Download Linux Bash Like [Cygwin](https://www.cygwin.com/)
