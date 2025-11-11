@@ -165,11 +165,11 @@ class Reaver:
         safe_print(ctx, "\n[Reaver Interactive Mode]\n")
 
         if not self.installed():
-            safe_print(ctx, "[!] Reaver не установлен. Попытка установить...")
+            safe_print(ctx, "[!] Reaver is not installed. Attempting to install...")
             try:
                 self.install()
             except Exception as e:
-                safe_print(ctx, f"[!] Ошибка установки: {e}")
+                safe_print(ctx, f"[!] Install error: {e}")
                 return
 
         interface = safe_input("Interface (e.g. wlan0 or mon0) [leave empty to cancel]: ", ctx).strip()
@@ -234,13 +234,180 @@ class Reaver:
             safe_print(ctx, "[*] Aborted by user.")
             return
 
-        safe_print(ctx, "[*] Запуск Reaver...")
+        safe_print(ctx, "[*] Running Reaver...")
         try:
             os.system(final_cmd)
         except Exception as e:
-            safe_print(ctx, f"[!] Ошибка при запуске: {e}")
+            safe_print(ctx, f"[!] Error while running: {e}")
         finally:
             safe_print(ctx, "[*] Reaver finished (or stopped).")
+# endregion
+
+# region: override class: pixie-wps
+class PixieWPS:
+    menu_items = [
+        "Run interactive mode",
+        "Back"
+    ]
+        
+    def __init__(self, ctx=None):
+        self.ctx = ctx or {}
+
+        self.tool_direction = os.path.join(os.getcwd(), "tools")
+        self.install_direction = os.path.join(self.tool_direction, "PixieWPS")
+
+        self.git_repository = "https://github.com/wiire/pixiewps.git"
+
+        if not os.path.isdir(self.tool_direction):
+            os.makedirs(self.tool_direction, exist_ok=True)
+
+        if not self.installed():
+            self.install()
+
+    def installed(self):
+        pixie_wps_py = os.path.join(self.install_direction, "pixiewps.py")
+        pixie_wps_bin = os.path.join(self.install_direction, "pixiewps")
+
+        if os.path.exists(pixie_wps_py) or os.path.exists(pixie_wps_bin):
+            return True
+
+        if shutil.which("pixiewps"):
+            return True
+
+        return False
+
+    def install(self):
+        safe_print(self.ctx, "[*] Installing PixieWPS...")
+
+        if not os.path.isdir(self.install_direction):
+            try:
+                res = subprocess.run(
+                    ["git", "clone", "--depth=1", self.git_repository, self.install_direction],
+                    check=False, capture_output=True, text=True
+                )
+
+                if res.returncode != 0:
+                    safe_print(self.ctx, f"[!] git clone failed: {res.stderr.strip() or res.stdout.strip()}")
+                else:
+                    safe_print(self.ctx, "[*] git clone completed.")
+            except FileNotFoundError:
+                safe_print(self.ctx, "[!] git not found on system. Please install git or clone manually.")
+        else:
+            git_dir = os.path.join(self.install_direction, ".git")
+            if os.path.isdir(git_dir):
+                safe_print(self.ctx, "[*] Repo already exists — attempting 'git pull' to update.")
+                res = subprocess.run(["git", "-C", self.install_direction, "pull"], check=False, capture_output=True, text=True)
+
+                if res.returncode != 0:
+                    safe_print(self.ctx, f"[!] git pull failed: {res.stderr.strip() or res.stdout.strip()}")
+                else:
+                    safe_print(self.ctx, "[*] git pull completed.")
+            else:
+                safe_print(self.ctx, "[*] Install directory exists and is not a git repo — skipping clone.")
+
+        req_file = os.path.join(self.install_direction, "requirements.txt")
+        if os.path.exists(req_file):
+            safe_print(self.ctx, "[*] Installing Python requirements (if any)...")
+
+            res = subprocess.run([shutil.which("python") or "python", "-m", "pip", "install", "-r", req_file],
+                                  check=False, capture_output=True, text=True)
+
+            if res.returncode != 0:
+                safe_print(self.ctx, f"[!] pip install failed: {res.stderr.strip() or res.stdout.strip()}")
+            else:
+                safe_print(self.ctx, "[*] requirements installed.")
+        else:
+            safe_print(self.ctx, "[*] No requirements.txt found — skipping pip install.")
+
+        configure_path = os.path.join(self.install_direction, "configure")
+        if os.path.exists(configure_path) and os.access(configure_path, os.X_OK):
+            safe_print(self.ctx, "[*] Running configure && make (if present).")
+            try:
+                subprocess.run(["/bin/sh", "-c", f"cd {self.install_direction} && ./configure && make && sudo make install"],
+                                check=False, capture_output=True, text=True)
+            except Exception:
+                pass
+
+        if self.installed():
+            safe_print(self.ctx, "[+] PixieWPS appears to be installed.")
+        else:
+            safe_print(self.ctx, "[!] PixieWPS not fully installed. Check the messages above.")
+
+    def run(self, ctx):
+        self.ctx = ctx
+        safe_print(ctx, f"[*] PixieWPS: selected '{ctx.get('item')}'")
+        self.sub_menu(ctx)
+
+    def sub_menu(self, ctx):
+        safe_print(ctx, "\nPixieWPS options:")
+        for i, it in enumerate(self.menu_items, 1):
+            safe_print(ctx, f"  [{i}] {it}")
+        safe_print(ctx, "")
+            
+        choice = safe_input(ctx.get("prompt", "root ~# "), ctx).strip()
+        
+        if not choice.isdigit() or not (1 <= int(choice) <= len(self.menu_items)):
+            self.__init__()
+
+        idx = int(choice) - 1
+        sel = self.menu_items[idx]
+
+        if sel.lower() == "back":
+            return
+
+        if "interactive" in sel:
+            self.run_interactive(ctx)
+
+    def run_interactive(self, ctx):
+        safe_print(ctx, "\n[PixieWPS Interactive Mode]\n")
+
+        if not self.installed():
+            safe_print(ctx, "[!] PixieWPS is not installed. Attempting to install...")
+            try:
+                self.install()
+            except Exception as e:
+                safe_print(ctx, f"[!] Install error: {e}")
+                return
+
+        safe_print(ctx, "Enter arguments for pixiewps (for example --help) or specific parameters.")
+        safe_print(ctx, "If you plan to supply local parameters (E-Hash, nonces, etc.), enter them here.")
+        safe_print(ctx, "Examples: --help    or    -e <e_hash1> -s <e_hash2> -z <something>\n")
+
+        user_args = safe_input("pixiewps args: ", ctx).strip()
+        if not user_args:
+            safe_print(ctx, "[*] Empty input — cancelled.")
+            return
+
+        pixie_py = os.path.join(self.install_direction, "pixiewps.py")
+        pixie_bin = os.path.join(self.install_direction, "pixiewps")
+
+        if os.path.exists(pixie_py):
+            cmd_parts = ["python3", pixie_py]
+        elif os.path.exists(pixie_bin) and os.access(pixie_bin, os.X_OK):
+            cmd_parts = [pixie_bin]
+        elif shutil.which("pixiewps"):
+            cmd_parts = [shutil.which("pixiewps")]
+        else:
+            cmd_parts = ["pixiewps"]
+
+        cmd_parts += user_args.split()
+        final_cmd = " ".join(cmd_parts)
+
+        safe_print(ctx, "\n[+] Built command:")
+        safe_print(ctx, f"    {final_cmd}\n")
+
+        confirm = safe_input("Run this command? (Y/n): ", ctx).strip().lower()
+        if confirm and confirm in ("n", "no"):
+            safe_print(ctx, "[*] Aborted by user.")
+            return
+
+        safe_print(ctx, "[*] Running PixieWPS...")
+        try:
+            os.system(final_cmd)
+        except Exception as e:
+            safe_print(ctx, f"[!] Error while running: {e}")
+        finally:
+            safe_print(ctx, "[*] PixieWPS finished (or stopped).")
 # endregion
 
 # region: actions utility
@@ -272,7 +439,8 @@ def execute(ctx):
 
     fprint(f"[*] Executing: {item}")
     actions = {
-        "--reaver": Reaver
+        "--reaver": Reaver,
+        "--pixiewps": PixieWPS
     }
 
     action = actions.get(item)
