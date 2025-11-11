@@ -17,7 +17,12 @@ menu_items.append("Back")
 import os
 import re
 
+import shutil
+import subprocess
+
 from colorama import Fore
+from time import gmtime, strftime
+
 from urllib.request import Request, urlopen
 from urllib.parse import quote_plus, urlparse
 # endregion
@@ -543,6 +548,121 @@ class Vbulletinrce:
         safe_print(ctx, "\n[*] Vbulletinrce session finished.\n")
 # endregion
 
+# region: override class: arachni
+class Arachni:
+    menu_items = [
+        "Run interactive",
+        "Back"
+    ]
+        
+    def __init__(self, ctx=None):
+        self.ctx = ctx or {}
+        self.git_repository = "https://github.com/Arachni/arachni.git"
+
+        self.log_direction = os.path.join(os.getcwd(), "logs")
+        self.tool_direction = os.path.join(os.getcwd(), "tools")
+        self.install_direction = os.path.join(self.tool_direction, "Arachni")
+
+        if not os.path.isdir(self.tool_direction):
+            os.makedirs(self.tool_direction, exist_ok=True)
+
+        if not self.installed():
+            self.install()
+
+    def installed(self):
+        return os.path.isdir(self.tool_direction) or (os.path.isdir(self.install_direction) and os.path.exists(os.path.join(self.install_direction, "arachni.py")))
+
+    def install(self):
+        safe_print(self.ctx, "[*] Installing Arachni...")
+
+        try:
+            res = subprocess.run(
+                ["git", "clone", "--depth=1", self.git_repository, self.install_direction],
+                check=False, capture_output=True, text=True
+            )
+
+            if res.returncode != 0:
+                safe_print(self.ctx, f"[!] git clone failed: {res.stderr.strip() or res.stdout.strip()}")
+            else:
+                safe_print(self.ctx, "[*] git clone completed.")
+        except FileNotFoundError:
+            safe_print(self.ctx, "[!] git not found. Please install git or clone manually.")
+
+        req_file = os.path.join(self.install_direction, "requirements.txt")
+        if os.path.exists(req_file):
+            res = subprocess.run([shutil.which("python") or "python", "-m", "pip", "install", "-r", req_file],
+                                  check=False, capture_output=True, text=True)
+
+            if res.returncode != 0:
+                safe_print(self.ctx, f"[!] pip install failed: {res.stderr.strip() or res.stdout.strip()}")
+            else:
+                safe_print(self.ctx, "[*] Python requirements installed.")
+
+        install_sh = os.path.join(self.install_direction, "install.sh")
+        if os.path.exists(install_sh):
+            os.chmod(install_sh, 0o755)
+            try:
+                subprocess.run([install_sh], cwd=self.install_direction, check=False)
+                safe_print(self.ctx, "[*] install.sh executed.")
+            except Exception as e:
+                safe_print(self.ctx, f"[!] Error executing install.sh: {e}")
+
+        if self.installed():
+            safe_print(self.ctx, "[+] Arachni installed successfully.")
+        else:
+            safe_print(self.ctx, "[!] Arachni installation failed. Check output above.")
+
+    def run(self, ctx):
+        self.ctx = ctx
+        safe_print(ctx, f"[*] Arachni: selected '{ctx.get('item')}'")
+        self.sub_menu(ctx)
+
+    def sub_menu(self, ctx):
+        safe_print(ctx, "\nArachni options:")
+        for i, it in enumerate(self.menu_items, 1):
+            safe_print(ctx, f"  [{i}] {it}")
+        safe_print(ctx, "")
+            
+        choice = safe_input(ctx.get("prompt", "root ~# "), ctx).strip()
+        
+        if not choice.isdigit() or not (1 <= int(choice) <= len(self.menu_items)):
+            self.__init__()
+
+        idx = int(choice) - 1
+        sel = self.menu_items[idx]
+
+        if sel.lower() == "back":
+            return
+
+        if "interactive" in sel:
+            self.run_interactive(ctx)
+
+    def run_interactive(self, ctx):
+        safe_print(ctx, "\n[*] Starting arachni session.\n")
+
+        if not self.installed():
+            safe_print(ctx, "[!] Arachni is not installed. Attempting to install...")
+            self.install()
+
+        target = safe_input("Enter target hostname or IP: ", ctx).strip()
+        if not target:
+            safe_print(ctx, "[!] No input provided — aborting.")
+            return
+
+        timestamp = strftime("%Y-%m-%d_%H-%M-%S", gmtime())
+        log_file = os.path.join(self.log_direction, f"arachni_{timestamp}.log")
+
+        cmd = ["arachni", target, "--output-debug", f"2>{log_file}"]
+        safe_print(ctx, f"[*] Running command: {' '.join(cmd)}")
+
+        try:
+            subprocess.run(" ".join(cmd), shell=True, check=True)
+        except Exception as e:
+            safe_print(ctx, f"[!] Error running Arachni: {e}")
+
+        safe_print(ctx, "\n[*] Arachni session finished.\n")
+# endregion
+
 # region: actions utility
 def run_action(action, ctx):
     if isinstance(action, type):
@@ -577,7 +697,7 @@ def execute(ctx):
         "Shell and directory finder": Sdfnd,
         "Joomla! remote code execution": Joomlarce,
         "Vbulletin remote code execution": Vbulletinrce,
-        #"Arachni - Web Application Security Scanner Framework",
+        "Arachni - Web Application Security Scanner Framework": Arachni,
         #"Private web f-scanner"
     }
 
