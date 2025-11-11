@@ -282,9 +282,9 @@ def host2ip(ctx):
 # region: override class: wpscan
 class WPScan:
     menu_items = [
-        "Username enumeration",
-        "Plugin enumeration",
-        "All enumeration tools",
+        "Interactive mode (guided scan)",
+        "Quick scan (URL)",
+        "Custom scan (manual args)",
         "Back"
     ]
         
@@ -456,14 +456,34 @@ class WPScan:
 # region: override class: CMS-Map
 class CMSMap:
     menu_items = [
-        "Detect CMS",
-        "Run scan (custom args)",
-        "Full scan (default)",
+        "Run interactive mode",
         "Back"
     ]
         
     def __init__(self, ctx=None):
         self.ctx = ctx or {}
+
+        self.tool_direction = os.path.join(os.getcwd(), "tools")
+        self.install_direction = os.path.join(self.tool_direction, "CMSMap")
+
+        self.git_repository = "https://github.com/Dionach/CMSmap.git"
+
+        if not os.path.isdir(self.tool_direction):
+            os.makedirs(self.tool_direction, exist_ok=True)
+
+        if not self.installed():
+            self.install()
+
+    def installed(self):
+        return os.path.isdir(self.install_direction) and os.path.exists(os.path.join(self.install_direction, "cmsmap.py"))
+
+    def install(self):
+        safe_print(self.ctx, "[*] Installing CMSMap...")
+        
+        os.system(f"git clone --depth=1 {self.git_repository} {self.install_direction}")
+        os.system(f"pip install -r {os.path.join(self.install_direction, 'requirements.txt')}")
+
+        safe_print(self.ctx, "[+] CMSMap installed successfully.")
 
     def run(self, ctx):
         self.ctx = ctx
@@ -487,147 +507,47 @@ class CMSMap:
         if sel.lower() == "back":
             return
 
-        if sel == "Detect CMS":
-            self.detect_cms(ctx)
-        elif sel == "Run scan (custom args)":
-            self.custom_scan(ctx)
-        elif sel == "Full scan (default)":
-            self.full_scan(ctx)
+        if "interactive" in sel:
+            self.run_interactive(ctx)
 
-    def _get_cmsmap_cmd(self):
-        if shutil.which("cmsmap"):
-            return ["cmsmap"]
+    def run_interactive(self, ctx):
+        safe_print(ctx, "\n[*] Starting CMSMap interactive session.")
+        target = safe_input("Enter target (e.g. example.com or https://example.com): ", ctx).strip()
+        if not target:
+            safe_print(ctx, "[!] Target required.")
+            return
 
-        bundled = os.path.join(os.getcwd(), "tools", "cmsmap", "cmsmap.py")
-        if os.path.exists(bundled) and shutil.which("python3"):
-            return [shutil.which("python3"), bundled]
+        extra = safe_input("Extra CMSMap args (optional, e.g. -p 8080 -[...] {...}): ", ctx).strip()
 
-        if os.path.exists(bundled):
-            if shutil.which("python"):
-                return ["python", bundled]
-
-        return None
-    
-    def _ensure_logs_dir(self):
         logs_dir = os.path.join(os.getcwd(), "logs")
         os.makedirs(logs_dir, exist_ok=True)
 
-        return logs_dir
-
-    def _make_logfile(self, prefix):
-        logs_dir = self._ensure_logs_dir()
         ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        filename = f"{prefix}-{ts}.log"
-        
-        return os.path.join(logs_dir, filename)
-    
-    def _run_command_stream(self, cmd_list, log_path, ctx):
+        log_path = os.path.join(logs_dir, f"cmsmap-{ts}.txt")
+
+        python_exec = shutil.which("python3") or shutil.which("python") or "python"
+        cmsmap_script = os.path.join(self.install_direction, "cmsmap.py")
+
+        if not os.path.exists(cmsmap_script):
+            safe_print(ctx, f"[!] cmsmap.py not found at {cmsmap_script}")
+            return
+
+        cmd_parts = [python_exec, cmsmap_script, "-t", target]
+        if extra:
+            cmd_parts += extra.split()
+        cmd_parts += ["-o", log_path]
+
+        cmd = " ".join(cmd_parts)
+
+        safe_print(ctx, f"[*] Executing: {cmd}")
+        safe_print(ctx, f"[*] Log: {log_path}")
+
         try:
-            with open(log_path, "w", encoding="utf-8", errors="ignore") as logf:
-                logf.write("Command: " + " ".join(cmd_list) + "\n\n")
-                process = subprocess.Popen(
-                    cmd_list,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
-                    text=True,
-                    bufsize=1,
-                    universal_newlines=True
-                )
-
-                if process.stdout is not None:
-                    for line in process.stdout:
-                        line = line.rstrip("\n")
-                        safe_print(ctx, line)
-                        logf.write(line + "\n")
-
-                    process.wait()
-                    return process.returncode
-                else:
-                    safe_print(ctx, "[!] No output from process.")
-                    return -1
-        except FileNotFoundError as e:
-            safe_print(ctx, f"[!] Executable not found: {e}")
-            return -1
+            os.system(cmd)
         except Exception as e:
-            safe_print(ctx, f"[!] Error running command: {e}")
-            return -1
+            safe_print(ctx, f"[!] Error running CMSMap: {e}")
 
-    def detect_cms(self, ctx):
-        target = safe_input("Enter target (e.g. https://example.com): ", ctx).strip()
-        if not target:
-            safe_print(ctx, "[!] Target required.")
-            return
-
-        cmsmap_cmd = self._get_cmsmap_cmd()
-        if not cmsmap_cmd:
-            safe_print(ctx, "[!] cmsmap executable not found and bundled script absent.")
-            safe_print(ctx, "    Place cmsmap in PATH or tools/cmsmap/cmsmap.py and ensure Python is available.")
-            return
-
-        logfile = self._make_logfile("cmsmap-detect")
-        args = cmsmap_cmd + [target]
-
-        safe_print(ctx, f"[*] Running CMS detection against {target}")
-        safe_print(ctx, f"[*] Log: {logfile}")
-
-        rc = self._run_command_stream(args, logfile, ctx)
-        if rc == 0:
-            safe_print(ctx, "[+] Detection finished (exit code 0).")
-        else:
-            safe_print(ctx, f"[!] Detection finished with code {rc}.")
-
-
-    def custom_scan(self, ctx):
-        target = safe_input("Enter target (e.g. https://example.com): ", ctx).strip()
-        if not target:
-            safe_print(ctx, "[!] Target required.")
-            return
-
-        extra = safe_input("Enter extra cmsmap args (leave empty for none, e.g. --enumerate-plugins): ", ctx)
-        extra = extra.strip()
-
-        cmsmap_cmd = self._get_cmsmap_cmd()
-        if not cmsmap_cmd:
-            safe_print(ctx, "[!] cmsmap executable not found and bundled script absent.")
-            return
-
-        logfile = self._make_logfile("cmsmap-custom")
-
-        user_args = extra.split() if extra else []
-        args = cmsmap_cmd + [target] + user_args
-
-        safe_print(ctx, f"[*] Running custom cmsmap scan against {target}")
-        safe_print(ctx, f"[*] Command: {' '.join(args)}")
-        safe_print(ctx, f"[*] Log: {logfile}")
-
-        rc = self._run_command_stream(args, logfile, ctx)
-        if rc == 0:
-            safe_print(ctx, "[+] Custom scan finished (exit code 0).")
-        else:
-            safe_print(ctx, f"[!] Custom scan finished with code {rc}.")
-
-    def full_scan(self, ctx):
-        target = safe_input("Enter target (e.g. https://example.com): ", ctx).strip()
-        if not target:
-            safe_print(ctx, "[!] Target required.")
-            return
-
-        cmsmap_cmd = self._get_cmsmap_cmd()
-        if not cmsmap_cmd:
-            safe_print(ctx, "[!] cmsmap executable not found and bundled script absent.")
-            return
-
-        logfile = self._make_logfile("cmsmap-full")
-        args = cmsmap_cmd + [target]
-
-        safe_print(ctx, f"[*] Running full (default) cmsmap scan against {target}")
-        safe_print(ctx, f"[*] Log: {logfile}")
-
-        rc = self._run_command_stream(args, logfile, ctx)
-        if rc == 0:
-            safe_print(ctx, "[+] Full scan finished (exit code 0).")
-        else:
-            safe_print(ctx, f"[!] Full scan finished with code {rc}.")
+        safe_input("\nPress Enter to return...", ctx)
 # endregion
 
 # region: override class: XSStrike
