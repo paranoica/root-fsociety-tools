@@ -14,7 +14,6 @@ menu_items.append("Back")
 
 # region: additonal imports
 import os
-import sys
 
 import nmap # type: ignore
 import socket
@@ -24,6 +23,7 @@ import subprocess
 
 from colorama import Fore
 from datetime import datetime
+
 import dns.resolver as _dns_resolver # type: ignore
 # endregion
 
