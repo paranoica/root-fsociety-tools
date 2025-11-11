@@ -658,6 +658,162 @@ class XSStrike:
         os.system(cmd)
 # endregion
 
+# region: override class: doork
+class Doork:
+    menu_items = [
+        "Run interactive mode",
+        "Back"
+    ]
+        
+    def __init__(self, ctx=None):
+        self.ctx = ctx or {}
+
+        self.tool_direction = os.path.join(os.getcwd(), "tools")
+        self.install_direction = os.path.join(self.tool_direction, "Doork")
+
+        self.git_repository = "https://github.com/AeonDave/doork.git"
+
+        if not os.path.isdir(self.tool_direction):
+            os.makedirs(self.tool_direction, exist_ok=True)
+
+        if not self.installed():
+            self.install()
+
+    def installed(self):
+        return os.path.isdir(self.install_direction) and os.path.exists(os.path.join(self.install_direction, "doork.py"))
+
+    def install(self):
+        safe_print(self.ctx, "[*] Installing Doork...")
+        
+        os.system(f"git clone --depth=1 {self.git_repository} {self.install_direction}")
+        os.system(f"pip install -r {os.path.join(self.install_direction, 'requirements.txt')}")
+
+        safe_print(self.ctx, "[+] Doork installed successfully.")
+
+    def run(self, ctx):
+        self.ctx = ctx
+        safe_print(ctx, f"[*] Doork: selected '{ctx.get('item')}'")
+        self.sub_menu(ctx)
+
+    def sub_menu(self, ctx):
+        safe_print(ctx, "\nDoork options:")
+        for i, it in enumerate(self.menu_items, 1):
+            safe_print(ctx, f"  [{i}] {it}")
+        safe_print(ctx, "")
+            
+        choice = safe_input(ctx.get("prompt", "root ~# "), ctx).strip()
+        
+        if not choice.isdigit() or not (1 <= int(choice) <= len(self.menu_items)):
+            self.__init__()
+
+        idx = int(choice) - 1
+        sel = self.menu_items[idx]
+
+        if sel.lower() == "back":
+            return
+
+        if "interactive" in sel:
+            self.run_interactive(ctx)
+
+    def run_interactive(self, ctx):
+        safe_print(ctx, "\n[*] Starting Doork interactive session.")
+        target = safe_input("Enter target (e.g. example.com or https://example.com): ", ctx).strip()
+
+        if not target:
+            safe_print(ctx, "[!] Target required.")
+            return
+
+        if not target.startswith("http://") and not target.startswith("https://"):
+            scheme = safe_input("No scheme detected. Use http or https? (http/https, default http): ", ctx).strip().lower()
+            if scheme not in ("http", "https"):
+                scheme = "http"
+            target = f"{scheme}://{target}"
+
+        wordlist = safe_input("Wordlist path (leave empty to use default bundled wordlist): ", ctx).strip()
+        threads = safe_input("Threads (number, default 10): ", ctx).strip() or "10"
+
+        delay = safe_input("Delay between requests in seconds (default 0): ", ctx).strip() or "0"
+        extra = safe_input("Extra doork args (optional, e.g. -x -r): ", ctx).strip()
+
+        logs_dir = os.path.join(os.getcwd(), "logs")
+        os.makedirs(logs_dir, exist_ok=True)
+
+        ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        log_path = os.path.join(logs_dir, f"doork-{ts}.txt")
+
+        python_exec = shutil.which("python3") or shutil.which("python") or "python"
+        doork_script = os.path.join(self.install_direction, "doork.py")
+
+        if not os.path.exists(doork_script):
+            safe_print(ctx, f"[!] doork.py not found at {doork_script}")
+            return
+
+        cmd_list = [python_exec, doork_script, "-t", target, "-o", log_path]
+
+        if wordlist:
+            cmd_list += ["-w", wordlist]
+
+        try:
+            int(threads)
+            cmd_list += ["-T", threads]
+        except Exception:
+            safe_print(ctx, "[!] Invalid threads value, skipping threads param.")
+
+        try:
+            float(delay)
+            cmd_list += ["-d", delay]
+        except Exception:
+            safe_print(ctx, "[!] Invalid delay value, skipping delay param.")
+
+        if extra:
+            import shlex
+            try:
+                extra_tokens = shlex.split(extra)
+            except Exception:
+                extra_tokens = extra.split()
+            cmd_list += extra_tokens
+
+        safe_print(ctx, f"[*] Executing: {' '.join(cmd_list)}")
+        safe_print(ctx, f"[*] Log: {log_path}")
+
+        env = os.environ.copy()
+        env["PYTHONPATH"] = self.install_direction + os.pathsep + env.get("PYTHONPATH", "")
+
+        try:
+            with open(log_path, "w", encoding="utf-8", errors="ignore") as logf:
+                logf.write("Command: " + " ".join(cmd_list) + "\n\n")
+                process = subprocess.Popen(
+                    cmd_list,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    bufsize=1,
+                    universal_newlines=True,
+                    cwd=self.install_direction,
+                    env=env
+                )
+
+                if process.stdout is None:
+                    safe_print(ctx, "[!] No output from process.")
+                else:
+                    for line in process.stdout:
+                        line = line.rstrip("\n")
+                        safe_print(ctx, line)
+                        logf.write(line + "\n")
+                    process.wait()
+                    rc = process.returncode
+                    safe_print(ctx, f"[*] Doork finished with exit code {rc}.")
+
+        except FileNotFoundError as e:
+            safe_print(ctx, f"[!] Executable not found: {e}")
+        except KeyboardInterrupt:
+            safe_print(ctx, "[!] Interrupted by user.")
+        except Exception as e:
+            safe_print(ctx, f"[!] Error running Doork: {e}")
+
+        safe_input("\nPress Enter to return...", ctx)
+# endregion
+
 # region: actions utility
 def run_action(action, ctx):
     if isinstance(action, type):
@@ -691,7 +847,8 @@ def execute(ctx):
         "Host2IP": host2ip,
         "WPScan": WPScan,
         "CMS-Map": CMSMap,
-        "XSStrike": XSStrike
+        "XSStrike": XSStrike,
+        "Doork": Doork
     }
 
     action = actions.get(item)
