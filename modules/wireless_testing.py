@@ -1,8 +1,8 @@
 # region: outer menu operations
 menu_name = "Wireless testing"
 menu_items = [
-    "--reaver",
-    "--pixiewps",
+    "reaver",
+    "pixiewps",
     "Bluetooth Honeypot GUI Framework"
 ]
 
@@ -724,8 +724,8 @@ def execute(ctx):
 
     fprint(f"[*] Executing: {item}")
     actions = {
-        "--reaver": Reaver,
-        "--pixiewps": PixieWPS,
+        "reaver": Reaver,
+        "pixiewps": PixieWPS,
         "Bluetooth Honeypot GUI Framework": Bluepot
     }
 

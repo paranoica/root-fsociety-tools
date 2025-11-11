@@ -11,9 +11,6 @@ menu_items.append("Back")
 
 # region: additonal imports
 import os
-import shutil
-import subprocess
-
 from colorama import Fore
 # endregion
 
