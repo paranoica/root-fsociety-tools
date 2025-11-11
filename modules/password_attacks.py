@@ -66,7 +66,7 @@ class CUPP:
             self.install()
 
     def installed(self):
-        return os.path.isdir(self.install_direction) and os.path.exists(os.path.join(self.install_direction, "cupp.py"))
+        return os.path.isdir(self.tool_direction) or (os.path.isdir(self.install_direction) and os.path.exists(os.path.join(self.install_direction, "cupp.py")))
 
     def install(self):
         safe_print(self.ctx, "[*] Installing CUPP...")
@@ -165,7 +165,7 @@ class BruteX:
             self.install()
 
     def installed(self):
-        return os.path.isdir(self.install_direction) and os.path.exists(os.path.join(self.install_direction, "brutex.py"))
+        return os.path.isdir(self.tool_direction) or (os.path.isdir(self.install_direction) and os.path.exists(os.path.join(self.install_direction, "brutex.py")))
 
     def install(self):
         safe_print(self.ctx, "[*] Installing BruteX...")
