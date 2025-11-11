@@ -3,10 +3,6 @@ menu_name = "Web utilities"
 menu_items = [
     "Drupal hacking",
     "Wordpress and Joomla scanner",
-    "Gravity form scanner",
-    "File upload checker",
-    "Wordpress exploit scanner",
-    "Wordpress plugins scanner",
     "Shell and directory finder",
     "Joomla! remote code execution",
     "Vbulletin remote code execution",
@@ -371,6 +367,88 @@ class Wppjmla:
         safe_print(ctx, "\n[*] Wppjmla session finished.\n")
 # endregion
 
+# region: override class: sdfnd
+class Sdfnd:
+    menu_items = [
+        "Run interactive",
+        "Back"
+    ]
+        
+    def __init__(self, ctx=None):
+        self.ctx = ctx or {}
+        self.upload = []
+        
+        self.shells = ["shell.php", "cmd.php", "upload.php"]
+        self.directories = ["uploads/", "files/", "images/", "tmp/"]
+
+    def run(self, ctx):
+        self.ctx = ctx
+        safe_print(ctx, f"[*] Sdfnd: selected '{ctx.get('item')}'")
+        self.sub_menu(ctx)
+
+    def sub_menu(self, ctx):
+        safe_print(ctx, "\nSdfnd options:")
+        for i, it in enumerate(self.menu_items, 1):
+            safe_print(ctx, f"  [{i}] {it}")
+        safe_print(ctx, "")
+            
+        choice = safe_input(ctx.get("prompt", "root ~# "), ctx).strip()
+        
+        if not choice.isdigit() or not (1 <= int(choice) <= len(self.menu_items)):
+            self.__init__()
+
+        idx = int(choice) - 1
+        sel = self.menu_items[idx]
+
+        if sel.lower() == "back":
+            return
+
+        if "interactive" in sel:
+            self.run_interactive(ctx)
+
+    def grab_uploaded_link(self, domain):
+        try:
+            for dir in self.directories:
+                url = domain.rstrip("/") + "/" + dir
+                currentcode = urlopen(url).getcode()
+
+                if currentcode in (200, 403):
+                    print("-------------------------")
+                    print("[+] Found Directory: " + str(domain + dir))
+                    print("-------------------------")
+
+                    self.upload.append(domain + dir)
+        except Exception:
+            pass
+
+    def grab_shell_from_link(self, domain):
+        try:
+            for upl in self.upload:
+                for shell in self.shells:
+                    url = upl.rstrip("/") + "/" + shell
+                    currentcode = urlopen(url).getcode()
+
+                    if currentcode == 200:
+                        print("-------------------------")
+                        print("[!] Found shell: " + str(upl + shell))
+                        print("-------------------------")
+        except Exception:
+            pass
+
+    def run_interactive(self, ctx):
+        safe_print(ctx, "\n[*] Starting sdfnd session.\n")
+
+        target = safe_input("Enter Target domain: ", ctx).rstrip()
+        if not target:
+            safe_print(ctx, "[!] No input provided — aborting.")
+            return
+
+        self.grab_uploaded_link(target)
+        self.grab_shell_from_link(target)
+
+        safe_print(ctx, "\n[*] Sdfnd session finished.\n")
+# endregion
+
 # region: actions utility
 def run_action(action, ctx):
     if isinstance(action, type):
@@ -402,11 +480,7 @@ def execute(ctx):
     actions = {
         "Drupal hacking": Drupal,
         "Wordpress and Joomla scanner": Wppjmla,
-        #"Gravity form scanner",
-        #"File upload checker",
-        #"Wordpress exploit scanner",
-        #"Wordpress plugins scanner",
-        #"Shell and directory finder",
+        "Shell and directory finder": Sdfnd,
         #"Joomla! remote code execution",
         #"Vbulletin remote code execution",
         #"Arachni - Web Application Security Scanner Framework",
